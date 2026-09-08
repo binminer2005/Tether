@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ kind_label }} — {{ episode.title }}{% endblock %}
+
+{% block content %}
+<section class="listen-page">
+  <div class="wrap listen-layout">
+    <div>
+      <a class="article-back" href="{{ url_for(kind) }}">← Quay lại {{ kind_label }}</a>
+      <span class="tag {{ kind }}">{{ kind_label }}</span>
+      <h1>{{ episode.title }}</h1>
+      <p class="listen-lead">{{ episode.desc }}</p>
+      <div class="listen-meta"><span>{{ episode.duration }}</span><span>·</span><span>{{ episode.guest }}</span></div>
+      <div class="listen-console" data-episode data-kind="{{ kind }}" data-id="{{ episode.id }}" data-title="{{ episode.title }}" data-audio="{{ episode.audio|default('', true) }}">
+        {% if kind == "radio" %}
+        <div class="listen-cover {{ kind }} listen-cover-image"><img src="{{ versioned_image_url('/pics/Reconnect.jpg') }}" alt="Radio Tether"></div>
+        {% else %}
+        <div class="listen-cover {{ kind }}">P</div>
+        {% endif %}
+        <div class="listen-console-body">
+          <div class="waveform waveform-large"></div>
+          <div class="listen-console-actions">
+            <button class="listen-play" type="button" data-play-episode aria-label="Phát {{ episode.title }}">▶</button>
+            <span>Nhấn phát để bắt đầu lắng nghe</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="listen-queue">
+      <span class="aside-label">Tiếp theo</span>
+      {% for item in episodes %}
+      <a class="queue-item {{ 'is-current' if item.id == episode.id }}" href="{{ url_for('listen', kind=kind, episode_id=item.id) }}">
+        <span class="queue-index">{{ '%02d'|format(loop.index) }}</span>
+        <span><strong>{{ item.title }}</strong><small>{{ item.duration }}</small></span>
+      </a>
+      {% endfor %}
+    </aside>
+  </div>
+</section>
+{% endblock %}
+
+{% block footer %}{% endblock %}

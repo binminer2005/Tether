@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Gửi bài viết — Tether{% endblock %}
+{% block content %}
+<div class="page-header"><div class="wrap"><span class="tag hoc-thuat">Đóng góp</span><h1>Chia sẻ một điều đáng đọc</h1><p>Bài viết sẽ được biên tập viên xem trước khi xuất bản trên Tether.</p></div></div>
+<section class="section"><div class="wrap form-layout">
+  <form class="editor-form" id="article-form" method="post" enctype="multipart/form-data">
+    <div class="field"><label for="title">Tiêu đề *</label><input id="title" name="title" maxlength="180" required></div>
+    <div class="field"><label for="category">Chuyên mục *</label><select id="category" name="category" required><option value="">Chọn chuyên mục</option>{% for slug, label in categories.items() %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="excerpt">Tóm tắt *</label><textarea id="excerpt" name="excerpt" rows="3" maxlength="400" required placeholder="Bài viết này nói về điều gì?"></textarea></div>
+
+    <div class="block-editor-shell">
+      <div class="block-toolbar">
+        <button type="button" class="mini-btn" data-block="heading">+ Tiêu đề</button>
+        <button type="button" class="mini-btn" data-block="paragraph">+ Đoạn văn</button>
+        <button type="button" class="mini-btn" data-block="quote">+ Trích dẫn</button>
+        <button type="button" class="mini-btn" data-block="list">+ Danh sách</button>
+      </div>
+      <div id="block-editor" class="block-editor"></div>
+      <textarea id="content" name="content" hidden></textarea>
+    </div>
+
+    <div class="field">
+      <label for="images">Ảnh đính kèm</label>
+      <input id="images" type="file" name="images" accept="image/*" multiple>
+      <div id="uploaded-images-preview" class="uploaded-images-preview"></div>
+    </div>
+
+    <div class="submit-row">
+      <button type="button" id="preview-full" class="btn btn-outline">Xem trước full-page</button>
+      <button class="btn btn-primary" type="submit">Gửi bài chờ duyệt</button>
+    </div>
+  </form>
+
+  <aside class="form-aside">
+    <div class="preview-box">
+      <strong>Xem trước</strong>
+      <div id="article-preview" class="article-preview">
+        <p>Nhập tiêu đề, tóm tắt và nội dung để xem trước bài viết ở đây.</p>
+      </div>
+    </div>
+    <strong>Trước khi gửi</strong>
+    <p>Hãy viết rõ nguồn nếu bài có trích dẫn. Tether ưu tiên những bài chân thật, tử tế và có ích cho người đọc.</p>
+    <a href="{{ url_for('my_submissions') }}">Xem bài đã gửi →</a>
+  </aside>
+</div></section>
+
+<div id="preview-modal" class="preview-modal" hidden>
+  <div class="preview-modal-backdrop" data-close="true"></div>
+  <div class="preview-modal-panel">
+    <div class="preview-modal-header">
+      <strong>Xem trước toàn trang</strong>
+      <button type="button" id="close-preview" class="mini-btn">Đóng</button>
+    </div>
+    <div id="modal-preview-content" class="modal-preview-content"></div>
+  </div>
+</div>
+
+<script>
+  const titleInput = document.getElementById('title');
+  const excerptInput = document.getElementById('excerpt');
+  const contentTextArea = document.getElementById('content');
+  const previewBox = document.getElementById('article-preview');
+  const modalPreview = document.getElementById('modal-preview-content');
+  const previewModal = document.getElementById('preview-modal');
+  const editor = document.getElementById('block-editor');
+  const imagesInput = document.getElementById('images');
+  const uploadedImagesPreview = document.getElementById('uploaded-images-preview');
+
+  let blocks = [
+    { type: 'paragraph', value: 'Viết đoạn mở đầu cho bài của bạn ở đây…' }
+  ];
+
+  function renderUploadedImages() {
+    const files = Array.from(imagesInput.files || []);
+    if (!files.length) {
+      uploadedImagesPreview.innerHTML = '';
+      return;
+    }
+
+    uploadedImagesPreview.innerHTML = files.map((file) => {
+      const url = URL.createObjectURL(file);
+      return `
+        <div class="uploaded-image-item">
+          <img src="${url}" alt="${escapeHtml(file.name)}">
+          <span>${escapeHtml(file.name)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  imagesInput.addEventListener('change', renderUploadedImages);
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function createBlock(type, value = '') {
+    return { type, value };
+  }
+
+  function toMarkdown() {
+    const lines = [];
+    blocks.forEach((block) => {
+      if (!block.value || !String(block.value).trim()) return;
+      if (block.type === 'heading') {
+        lines.push('## ' + String(block.value).trim());
+      } else if (block.type === 'paragraph') {
+        lines.push(String(block.value).trim());
+      } else if (block.type === 'quote') {
+        lines.push('> ' + String(block.value).trim());
+      } else if (block.type === 'list') {
+        const items = String(block.value)
+          .split(/\n+/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+        items.forEach((item) => lines.push('- ' + item));
+      }
+    });
+    const finalText = lines.join('\n\n');
+    contentTextArea.value = finalText;
+    return finalText;
+  }
+
+  function renderMarkdownPreview(markdownText) {
+    const title = titleInput.value.trim() || 'Tiêu đề bài viết';
+    const excerpt = excerptInput.value.trim() || 'Tóm tắt bài viết sẽ hiển thị ở đây.';
+    const blocks = markdownText ? markdownText.split(/\n\s*\n/) : [''];
+    let html = '<h3>' + escapeHtml(title) + '</h3><p class="preview-excerpt">' + escapeHtml(excerpt) + '</p>';
+
+    blocks.forEach((block) => {
+      const line = block.trim();
+      if (!line) return;
+      if (line.startsWith('## ')) {
+        html += '<h4>' + escapeHtml(line.replace(/^##\s*/, '')) + '</h4>';
+      } else if (line.startsWith('> ')) {
+        html += '<blockquote>' + escapeHtml(line.replace(/^>\s*/, '')) + '</blockquote>';
+      } else if (line.startsWith('- ')) {
+        const items = block
+          .split(/\n/)
+          .map((item) => item.trim())
+          .filter((item) => item.startsWith('- '))
+          .map((item) => '<li>' + escapeHtml(item.replace(/^-\s*/, '')) + '</li>')
+          .join('');
+        if (items) html += '<ul>' + items + '</ul>';
+      } else if (/^!\[(.*)\]\((.*)\)$/.test(line)) {
+        const match = line.match(/^!\[(.*)\]\((.*)\)$/);
+        html += '<figure class="preview-figure"><img src="' + escapeHtml(match[2]) + '" alt="' + escapeHtml(match[1] || 'Ảnh bài viết') + '"></figure>';
+      } else {
+        html += '<p>' + escapeHtml(line) + '</p>';
+      }
+    });
+
+    return html;
+  }
+
+  function renderPreview() {
+    const markdown = toMarkdown();
+    previewBox.innerHTML = renderMarkdownPreview(markdown);
+    modalPreview.innerHTML = renderMarkdownPreview(markdown);
+  }
+
+  function renderBlockEditor() {
+    editor.innerHTML = '';
+    blocks.forEach((block, index) => {
+      const blockNode = document.createElement('div');
+      blockNode.className = 'editor-block';
+
+      const header = document.createElement('div');
+      header.className = 'block-header';
+      header.innerHTML = '<span>' + (block.type === 'heading' ? 'Tiêu đề' : block.type === 'quote' ? 'Trích dẫn' : block.type === 'list' ? 'Danh sách' : 'Đoạn văn') + '</span><button type="button" class="remove-block">Xóa</button>';
+      header.querySelector('.remove-block').addEventListener('click', () => {
+        blocks.splice(index, 1);
+        if (blocks.length === 0) blocks.push({ type: 'paragraph', value: '' });
+        renderBlockEditor();
+        renderPreview();
+      });
+
+      const input = document.createElement('div');
+      if (block.type === 'heading' || block.type === 'paragraph' || block.type === 'quote') {
+        const field = document.createElement(block.type === 'heading' ? 'input' : 'textarea');
+        field.className = 'block-input block-' + block.type;
+        field.value = block.value;
+        field.placeholder = block.type === 'heading' ? 'Nhập tiêu đề phụ...' : block.type === 'quote' ? 'Viết trích dẫn...' : 'Viết đoạn văn...';
+        field.addEventListener('input', (event) => {
+          blocks[index].value = event.target.value;
+          renderPreview();
+        });
+        input.appendChild(field);
+      } else if (block.type === 'list') {
+        const field = document.createElement('textarea');
+        field.className = 'block-input block-list';
+        field.rows = 4;
+        field.placeholder = 'Mỗi dòng là một mục\nMục 1\nMục 2';
+        field.value = block.value;
+        field.addEventListener('input', (event) => {
+          blocks[index].value = event.target.value;
+          renderPreview();
+        });
+        input.appendChild(field);
+      }
+
+      blockNode.appendChild(header);
+      blockNode.appendChild(input);
+      editor.appendChild(blockNode);
+    });
+    toMarkdown();
+  }
+
+  document.querySelectorAll('[data-block]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const type = button.getAttribute('data-block');
+      blocks.push(createBlock(type, type === 'list' ? 'Mục 1\nMục 2' : ''));
+      renderBlockEditor();
+      renderPreview();
+    });
+  });
+
+  document.getElementById('preview-full').addEventListener('click', () => {
+    renderPreview();
+    previewModal.hidden = false;
+  });
+
+  document.getElementById('close-preview').addEventListener('click', () => {
+    previewModal.hidden = true;
+  });
+
+  previewModal.addEventListener('click', (event) => {
+    if (event.target.dataset.close === 'true') previewModal.hidden = true;
+  });
+
+  [titleInput, excerptInput].forEach((el) => el.addEventListener('input', renderPreview));
+  renderBlockEditor();
+  renderPreview();
+</script>
+{% endblock %}

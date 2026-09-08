@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Radio — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag radio">Radio</span>
+    <h1>Radio Tether<br>nghe khi bạn cần một</br>giọng nói bên cạnh</h1>
+    <p>Phát định kỳ, mỗi số là một chủ đề học thuật hoặc chữa lành được kể lại bằng giọng đọc và âm thanh.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    {% for ep in episodes %}
+    <div class="episode-row" data-episode data-kind="radio" data-id="{{ ep.id }}" data-title="{{ ep.title }}" data-audio="{{ ep.audio|default('', true) }}" data-detail-url="{{ url_for('listen', kind='radio', episode_id=ep.id) }}">
+      <div class="episode-thumb"><div class="thumb radio"><img src="{{ versioned_image_url('/pics/Reconnect.jpg') }}" alt="Radio Tether"></div></div>
+      <div class="episode-body">
+        <h3>{{ ep.title }}</h3>
+        <p>{{ ep.desc }}</p>
+        <div class="waveform" style="margin:8px 0;"></div>
+        <div class="episode-meta"><span>{{ ep.duration }}</span><span>·</span><span>{{ ep.guest }}</span></div>
+      </div>
+      <a class="episode-play" href="{{ url_for('listen', kind='radio', episode_id=ep.id) }}" data-play-episode aria-label="Phát {{ ep.title }}">▶</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

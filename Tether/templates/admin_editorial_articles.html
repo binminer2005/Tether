@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Quản lý bài viết — Tether{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag chua-lanh">Quản trị</span>
+    <h1>Quản lý bài viết</h1>
+    <p>Thêm, sửa, xóa bài viết từ SQLite trực tiếp.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <div class="admin-form-card">
+      <h2>{{ 'Chỉnh sửa bài viết' if editing else 'Thêm bài viết mới' }}</h2>
+      <form method="post" action="{{ url_for('admin_editorial_articles') }}" enctype="multipart/form-data">
+        {% if editing %}
+        <input type="hidden" name="article_id" value="{{ editing['id'] }}">
+        {% endif %}
+
+        <div class="form-grid">
+          <label>
+            <span>Tiêu đề</span>
+            <input type="text" name="title" value="{{ editing['title'] if editing else '' }}" required>
+          </label>
+          <label>
+            <span>Danh mục</span>
+            <select name="category" required>
+              {% for key, label in categories.items() %}
+              <option value="{{ key }}" {% if editing and editing['category'] == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Tác giả</span>
+            <input type="text" name="author" value="{{ editing['author'] if editing else 'Tether' }}">
+          </label>
+          <label>
+            <span>Thời lượng đọc</span>
+            <input type="text" name="read_time" value="{{ editing['read_time'] if editing else 'Bài biên tập' }}">
+          </label>
+          <label>
+            <span>Ảnh</span>
+            <input id="article-image" type="file" name="image" accept="image/*">
+            {% if editing and editing['image'] %}<small class="admin-image-current">Ảnh hiện tại: {{ editing['image'] }}</small>{% endif %}
+          </label>
+          <label>
+            <span>Ngày xuất bản</span>
+            <input type="date" name="published_at" value="{{ editing['published_at'] if editing and editing['published_at'] else '' }}">
+          </label>
+          <label>
+            <span>Trạng thái</span>
+            <select name="status">
+              <option value="published" {% if not editing or editing['status'] == 'published' %}selected{% endif %}>Published</option>
+              <option value="draft" {% if editing and editing['status'] == 'draft' %}selected{% endif %}>Draft</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          <span>Mô tả ngắn</span>
+          <textarea name="excerpt" rows="3" required>{{ editing['excerpt'] if editing else '' }}</textarea>
+        </label>
+
+        <label>
+          <span>Nội dung bài viết</span>
+          <div class="admin-editor-toolbar" role="toolbar" aria-label="Công cụ định dạng nội dung">
+            <button type="button" class="mini-btn" data-markdown="heading">Tiêu đề phụ</button>
+            <button type="button" class="mini-btn" data-markdown="paragraph">Đoạn văn</button>
+            <button type="button" class="mini-btn" data-markdown="list">Danh sách</button>
+            <button type="button" class="mini-btn" data-markdown="quote">Trích dẫn</button>
+            <button type="button" class="mini-btn" data-markdown="image">Ảnh</button>
+          </div>
+          <textarea name="content" rows="16" required>{% if editing and editing['blocks'] %}{% for block in editing['blocks'] %}{% if block['type'] == 'heading' %}## {{ block['text'] }}
+
+{% elif block['type'] == 'paragraph' %}{{ block['text'] }}
+
+{% elif block['type'] == 'quote' %}> {{ block['text'] }}
+
+{% elif block['type'] == 'list' %}{% for item in block['items'] %}- {{ item }}
+{% endfor %}
+
+{% elif block['type'] == 'image' %}![]({{ block['src'] }})
+
+{% endif %}{% endfor %}{% endif %}</textarea>
+        </label>
+
+        <div class="admin-actions-row">
+          <button type="submit" class="btn btn-primary">{{ 'Lưu bài' if editing else 'Tạo bài' }}</button>
+          {% if editing %}
+          <a class="btn btn-outline" href="{{ url_for('admin_editorial_articles') }}">Hủy</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+
+    <div class="admin-list-card">
+      <h2>Danh sách bài viết</h2>
+      {% for article in articles %}
+      <article class="submission-item admin-item">
+        <div>
+          <span class="tag {{ article['category'] }}">{{ article['category_label'] }}</span>
+          <h3>{{ article['title'] }}</h3>
+          <p>{{ article['excerpt'] }}</p>
+          <small>{{ article['author'] }} · {{ article['read_time'] }} · {{ article['status'] }}</small>
+        </div>
+        <div class="admin-actions">
+          <a class="btn btn-outline" href="{{ url_for('admin_editorial_articles', edit_id=article['id']) }}">Sửa</a>
+          <form method="post" action="{{ url_for('delete_editorial_article', article_id=article['id']) }}" onsubmit="return confirm('Xóa bài viết này khỏi SQLite?');">
+            <button class="btn btn-primary" type="submit">Xóa</button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <p>Chưa có bài viết nào trong SQLite.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+<script>
+  const contentEditor = document.querySelector('textarea[name="content"]');
+  const markdownSnippets = {
+    heading: '## Tiêu đề phụ',
+    paragraph: 'Đoạn văn mới',
+    list: '- Mục 1\n- Mục 2',
+    quote: '> Trích dẫn',
+    image: ''
+  };
+
+  const imageInput = document.getElementById('article-image');
+  const imageButton = document.querySelector('[data-markdown="image"]');
+
+  function insertMarkdown(snippet) {
+    if (!snippet) return;
+    const start = contentEditor.selectionStart;
+    const end = contentEditor.selectionEnd;
+    const before = contentEditor.value.slice(0, start);
+    const after = contentEditor.value.slice(end);
+    const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
+    const suffix = after && !after.startsWith('\n') ? '\n\n' : '';
+
+    contentEditor.value = before + prefix + snippet + suffix + after;
+    const cursorPosition = before.length + prefix.length + snippet.length;
+    contentEditor.focus();
+    contentEditor.setSelectionRange(cursorPosition, cursorPosition);
+  }
+
+  imageButton.addEventListener('click', () => imageInput.click());
+  imageInput.addEventListener('change', () => {
+    if (imageInput.files[0]) imageButton.textContent = `Đã chọn: ${imageInput.files[0].name}`;
+  });
+
+  document.querySelectorAll('[data-markdown]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const snippet = markdownSnippets[button.dataset.markdown];
+      if (button.dataset.markdown !== 'image') insertMarkdown(snippet);
+    });
+  });
+</script>
+{% endblock %}

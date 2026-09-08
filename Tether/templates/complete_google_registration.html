@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Hoàn tất đăng ký — Tether{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1>Hoàn tất tài khoản</h1>
+    <p class="auth-sub">Bạn đã đăng nhập Google bằng <strong>{{ google_email }}</strong>. Hãy thêm họ tên và mật khẩu để hoàn tất.</p>
+    <form method="post">
+      <div class="field">
+        <label for="name">Họ và tên</label>
+        <input type="text" id="name" name="name" placeholder="Nguyễn Văn A" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Mật khẩu</label>
+        <input type="password" id="password" name="password" placeholder="Tối thiểu 8 ký tự" minlength="8" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Hoàn tất đăng ký</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

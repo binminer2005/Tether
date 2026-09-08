@@ -1,0 +1,35 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TETHER_DATA_DIR: /app/data
+      TETHER_UPLOAD_DIR: /app/data/uploads
+      TETHER_PICS_DIR: /app/data/Pics
+      USERS_FILE: /app/data/users.json
+      TRUST_PROXY: "1"
+    volumes:
+      - ./Tether/runtime:/app/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./Tether/static:/var/www/tether/static:ro
+      - ./Tether/runtime/uploads:/var/www/tether/uploads:ro
+      - ./Tether/runtime/Pics:/var/www/tether/Pics:ro

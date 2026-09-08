@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Kiến thức — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag hoc-thuat">Kiến thức</span>
+    <h1>Học thuật, cảm xúc và chữa lành<br>Ba góc nhìn về con người</br></h1>
+    <p>Mỗi chuyên mục là một cách tiếp cận khác nhau với cùng câu hỏi:
+      <br><b>Làm sao để hiểu chính mình rõ hơn.</b></br>
+    </p>
+
+    <div class="category-strip">
+      <div class="category-chip hoc-thuat">
+        <span class="tag hoc-thuat">Học thuật</span>
+        <h3>Kiến thức nền tảng</h3>
+        <p>Tâm lý học, xã hội học, khoa học hành vi được diễn giải dễ hiểu, có chiều sâu.</p>
+        <a href="{{ url_for('hoc_thuat') }}">Vào chuyên mục →</a>
+      </div>
+      <div class="category-chip cam-xuc">
+        <span class="tag cam-xuc">Cảm xúc</span>
+        <h3>Câu chuyện thật</h3>
+        <p>Những câu chuyện được kể bằng <br>trải nghiệm cá nhân một cách chân thực.</br></p>
+        <a href="{{ url_for('cam_xuc') }}">Vào chuyên mục →</a>
+      </div>
+      <div class="category-chip chua-lanh">
+        <span class="tag chua-lanh">Chữa lành</span>
+        <h3>Đồng hành từng bước</h3>
+        <p>Không lời khuyên vội vàng. Chỉ có sự đồng hành đúng lúc.</p>
+        <a href="{{ url_for('chua_lanh') }}">Vào chuyên mục →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-head"><h2>Bài viết nổi bật</h2></div>
+    <div class="card-grid">
+      {% for a in all_articles %}
+      <a class="article-card" href="{{ a.url }}">
+        <div class="thumb {{ a.category }}">
+          {% if a.image %}<img src="{{ versioned_image_url(a.image) }}" alt="{{ a.title }}">{% endif %}
+        </div>
+        <span class="tag {{ a.category }}">{{ a.category_label }}</span>
+        <h3>{{ a.title }}</h3>
+        <div class="card-meta"><span>{{ a.author }}</span><span class="dot"></span><span>{{ a.read_time }}</span></div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Tether{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=asset_version('static/css/style.css')) }}">
+</head>
+<body>
+
+{% block header %}
+<header class="site-header">
+  <div class="wrap nav-row">
+    <a href="{{ url_for('home') }}" class="logo" aria-label="Tether">
+      <img src="{{ url_for('logos', filename='Logo.png', v=asset_version('logo/Logo.png')) }}" alt="Tether">
+    </a>
+
+    <nav class="main-nav">
+      <ul>
+        <li><a class="nav-link {{ 'active' if active=='home' }}" href="{{ url_for('home') }}">Trang chủ</a></li>
+        <li class="has-dropdown">
+          <a class="nav-link {{ 'active' if active=='kienthuc' }}" href="{{ url_for('kien_thuc') }}">Kiến thức</a>
+          <div class="dropdown">
+            <a href="{{ url_for('hoc_thuat') }}">Học thuật</a>
+            <a href="{{ url_for('cam_xuc') }}">Cảm xúc</a>
+            <a href="{{ url_for('chua_lanh') }}">Chữa lành</a>
+          </div>
+        </li>
+        <li><a class="nav-link {{ 'active' if active=='radio' }}" href="{{ url_for('radio') }}">Radio</a></li>
+        <li><a class="nav-link {{ 'active' if active=='podcast' }}" href="{{ url_for('podcast') }}">Podcast</a></li>
+        <li><a class="nav-link {{ 'active' if active=='landing' }}" href="{{ url_for('landingpage') }}#about-us">About us</a></li>
+      </ul>
+    </nav>
+
+    <div class="nav-actions">
+      {% if current_user %}
+      <a href="{{ url_for('submit_article') }}" class="btn btn-outline">Viết bài</a>
+      {% if current_user['role'] == 'admin' %}
+      <a href="{{ url_for('admin_submissions') }}" class="btn btn-outline">Duyệt bài</a>
+      <a href="{{ url_for('admin_editorial_articles') }}" class="btn btn-outline">Quản lý bài</a>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="btn btn-primary">Đăng xuất</a>
+      {% else %}
+      <a href="{{ url_for('sign') }}" class="btn btn-outline">Đăng nhập</a>
+      <a href="{{ url_for('register') }}" class="btn btn-primary">Đăng ký</a>
+      {% endif %}
+      <button class="menu-toggle" aria-label="Mở menu">☰</button>
+    </div>
+  </div>
+</header>
+{% endblock %}
+
+<main>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-stack wrap">
+    {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% block content %}{% endblock %}
+</main>
+
+{% block footer %}
+<div class="newsletter-band">
+  <div class="wrap">
+    <div>
+      <h2>Đồng hành cùng Tether</h2>
+      <p>Hãy cùng Tether viết nên những câu chuyện ý nghĩa.</p>
+    </div>
+    <form class="newsletter-form" onsubmit="return false;">
+      <input type="email" placeholder="Email của bạn" required>
+      <button type="submit">Đăng ký</button>
+    </form>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-col footer-about">
+        <a href="{{ url_for('home') }}" class="logo footer-logo" aria-label="Tether">
+          <img src="{{ url_for('logos', filename='Logo.png', v=asset_version('logo/Logo.png')) }}" alt="Tether">
+        </a>
+        <p>The space between us</p>
+      </div>
+      <div class="footer-col">
+        <h4>KIẾN THỨC</h4>
+        <ul>
+          <li><a href="{{ url_for('hoc_thuat') }}">Học thuật</a></li>
+          <li><a href="{{ url_for('cam_xuc') }}">Cảm xúc</a></li>
+          <li><a href="{{ url_for('chua_lanh') }}">Chữa lành</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>LẮNG NGHE</h4>
+        <ul>
+          <li><a href="{{ url_for('radio') }}">Radio</a></li>
+          <li><a href="{{ url_for('podcast') }}">Podcast</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>TÀI KHOẢN</h4>
+        <ul>
+          <li><a href="{{ url_for('sign') }}">Đăng nhập</a></li>
+          <li><a href="{{ url_for('register') }}">Đăng ký</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Tether . All rights reserved.</span>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
+<div class="audio-player" data-audio-player hidden>
+  <audio data-audio-element preload="metadata"></audio>
+  <div class="audio-player-info">
+    <span class="audio-player-kind" data-player-kind>Đang nghe</span>
+    <strong data-player-title>Chưa chọn tập</strong>
+    <small>Đang phát · Tether</small>
+  </div>
+  <div class="audio-player-controls">
+    <button class="audio-control audio-skip" type="button" data-player-prev aria-label="Tập trước">|◀</button>
+    <button class="audio-control audio-main-control" type="button" data-player-toggle aria-label="Phát">▶</button>
+    <button class="audio-control audio-skip" type="button" data-player-next aria-label="Tập tiếp theo">▶|</button>
+  </div>
+  <div class="audio-player-track">
+    <div class="audio-progress"><span data-player-progress></span></div>
+  </div>
+  <button class="audio-control audio-close" type="button" data-player-close aria-label="Đóng trình phát">×</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js', v='2') }}"></script>
+</body>
+</html>

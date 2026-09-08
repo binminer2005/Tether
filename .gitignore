@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+Tether/client_secret_*.json
+Tether/users.json
+
+# Runtime data and local databases
+Tether/runtime/
+*.sqlite3
+*.db
+
+# User-generated uploads
+Tether/static/uploads/*
+!Tether/static/uploads/.gitkeep
+
+# Local tooling
+.vscode/*.log
+.DS_Store
+Thumbs.db

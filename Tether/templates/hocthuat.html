@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Học thuật — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag hoc-thuat">Học thuật</span>
+    <h1>Tâm lý học và khoa học hành vi<br>Soi sáng những điều rất đời thường</br></h1>
+    <p>Không hàn lâm khô khan. <br>Mỗi bài viết đều bắt đầu từ một câu chuyện rất đời thường.</br></p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <div class="card-grid">
+      {% for a in articles %}
+      <a class="article-card" href="{{ a.url }}">
+        <div class="thumb hoc-thuat">
+          {% if a.image %}<img src="{{ versioned_image_url(a.image) }}" alt="{{ a.title }}">{% endif %}
+        </div>
+        <span class="tag hoc-thuat">Học thuật</span>
+        <h3>{{ a.title }}</h3>
+        <div class="card-meta"><span>{{ a.author }}</span><span class="dot"></span><span>{{ a.read_time }}</span></div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

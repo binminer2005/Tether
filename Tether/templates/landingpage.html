@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Tether — Những điều xảy ra giữa chúng ta{% endblock %}
+
+{% block content %}
+<section class="landing-hero">
+  <div class="landing-decor"></div>
+  <div class="wrap">
+    <div class="landing-kicker">The Space Between Us</div>
+    <h1>Những điều xảy ra<em> giữa chúng ta</em></h1>
+    <p>Tether là một nền tảng tri thức, cảm xúc và những cuộc trò chuyện sâu sắc giúp người Việt xây dựng những mối quan hệ lành mạnh, gắn bó và bền vững hơn.</p>
+    <div class="landing-cta">
+      <a href="{{ url_for('home') }}" class="btn btn-primary">Khám phá Tether</a>
+    </div>
+  </div>
+</section>
+
+<section class="pillars-strip">
+  <div class="wrap">
+    <div class="pillar-block">
+      <span class="tag hoc-thuat pillar-tag">Học thuật</span>
+      <h3>Kiến thức được diễn giải lại</h3>
+      <p>Tâm lý học, xã hội học và khoa học hành vi. Viết bằng ngôn ngữ dễ tiếp cận, có chiều sâu và trích dẫn rõ ràng.</p>
+    </div>
+    <div class="pillar-block">
+      <span class="tag cam-xuc pillar-tag">Cảm xúc</span>
+      <h3>Câu chuyện thật, không tô vẽ</h3>
+      <p>Những trải nghiệm cá nhân được kể lại chân thực, nơi cảm xúc được gọi tên thay vì né tránh.</p>
+    </div>
+    <div class="pillar-block">
+      <span class="tag chua-lanh pillar-tag">Chữa lành</span>
+      <h3>Đồng hành, không vội vàng</h3>
+      <p>Không đưa lời khuyên chớp nhoáng — Tether đồng hành cùng bạn qua từng giai đoạn của quá trình.</p>
+    </div>
+  </div>
+</section>
+<section id="about-us" class="section about-section">
+  <div class="wrap about-grid">
+    <div>
+      <span class="tag hoc-thuat">About us</span>
+      <h2>Tether là một khoảng lặng để bạn hiểu mình hơn.</h2>
+    </div>
+    <div>
+      <p>Chúng mình tin rằng kiến thức trở nên có ý nghĩa hơn khi được kể bằng sự tử tế, và chữa lành bắt đầu từ việc được lắng nghe.</p>
+      <p>Tether kết nối những bài viết, câu chuyện, radio và podcast về tâm lý, cảm xúc và đời sống để bạn có thể đọc chậm, nghĩ sâu và tìm thấy sự đồng hành vừa đủ.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

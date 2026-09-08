@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title }} — Tether{% endblock %}
+
+{% block content %}
+<article class="article-page">
+  <header class="article-header">
+    <div class="wrap article-narrow">
+      <a class="article-back" href="{{ url_for('kien_thuc') }}">← Quay lại Kiến thức</a>
+      <span class="tag {{ article.category }}">{{ article.category_label }}</span>
+      <h1>{{ article.title }}</h1>
+      <p class="article-lead">{{ article.excerpt }}</p>
+      <div class="article-byline">
+        <span>{{ article.author }}</span>
+        {% if article.source and article.source.label %}<span class="dot"></span><span>{{ article.source.label }}</span>{% endif %}
+        <span class="dot"></span>
+        <span>{{ article.read_time }}</span>
+      </div>
+    </div>
+  </header>
+
+  {% if article.image %}
+  <div class="wrap article-hero-image">
+    <img src="{{ versioned_image_url(article.image) }}" alt="{{ article.title }}">
+  </div>
+  {% endif %}
+
+  <div class="wrap article-layout">
+    <div class="article-content">
+      {% for block in article.blocks|default([], true) %}
+      {% if block.type == 'heading' %}
+      <section class="article-section" id="block-{{ loop.index }}"><h2>{{ block.text }}</h2></section>
+      {% elif block.type == 'paragraph' %}
+      <p>{{ block.text }}</p>
+      {% elif block.type == 'quote' %}
+      <blockquote>{{ block.text }}</blockquote>
+      {% elif block.type == 'list' %}
+      <ul>{% for item in block["items"] %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% elif block.type == 'image' %}
+      <figure class="article-figure">
+        <img src="{{ block.src }}" alt="{{ block.alt }}">
+        {% if block.caption %}<figcaption>{{ block.caption }}</figcaption>{% endif %}
+      </figure>
+      {% endif %}
+      {% endfor %}
+
+      {% for section in article.sections|default([], true) if not article.blocks|default([], true) %}
+      <section class="article-section" id="section-{{ loop.index }}">
+        <h2>{{ section.heading }}</h2>
+        {% for paragraph in section.paragraphs %}
+        <p>{{ paragraph }}</p>
+        {% endfor %}
+      </section>
+      {% endfor %}
+
+      {% if not article.sections|default([], true) and not article.blocks|default([], true) %}
+      <section class="article-section">
+        <h2>Đôi dòng về bài viết</h2>
+        <p>{{ article.excerpt }}</p>
+        <p>Nội dung chi tiết đang được Tether biên tập thêm. Bạn có thể quay lại chuyên mục để đọc những bài viết đã hoàn thiện.</p>
+      </section>
+      {% endif %}
+
+      <aside class="article-note">
+        <strong>Một khoảng dừng nhỏ</strong>
+        <p>Bạn không cần giải quyết toàn bộ cảm xúc ngay hôm nay. Chỉ cần gọi đúng tên điều đang xảy ra, thế là đủ để bắt đầu.</p>
+      </aside>
+    </div>
+
+    <aside class="article-aside">
+      <span class="aside-label">Trong bài viết</span>
+      <ol>
+        {% for section in article.sections|default([], true) if not article.blocks|default([], true) %}
+        <li><a href="#section-{{ loop.index }}">{{ section.heading }}</a></li>
+        {% endfor %}
+        {% for block in article.blocks|default([], true) %}
+        {% if block.type == 'heading' %}<li><a href="#block-{{ loop.index }}">{{ block.text }}</a></li>{% endif %}
+        {% endfor %}
+      </ol>
+    </aside>
+  </div>
+</article>
+{% endblock %}

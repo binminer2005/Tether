@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Cảm xúc — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag cam-xuc">Cảm xúc</span>
+    <h1>Một không gian nơi bạn có thể <br>chia sẻ cảm xúc của mình</br></h1>
+    <p>Những trải nghiệm được viết ra một cách trung thực.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <div class="card-grid">
+      {% for a in articles %}
+      <a class="article-card" href="{{ a.url }}">
+        <div class="thumb cam-xuc"></div>
+        <span class="tag cam-xuc">Cảm xúc</span>
+        <h3>{{ a.title }}</h3>
+        <div class="card-meta"><span>{{ a.author }}</span><span class="dot"></span><span>{{ a.read_time }}</span></div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

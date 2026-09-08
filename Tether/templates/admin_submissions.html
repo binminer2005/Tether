@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Duyệt bài — Tether{% endblock %}
+{% block content %}
+<div class="page-header"><div class="wrap"><span class="tag chua-lanh">Quản trị</span><h1>Duyệt bài viết</h1><p>Xem xét nội dung cộng đồng trước khi xuất bản.</p><div class="admin-summary">{{ pending_count }} bài đang chờ duyệt</div></div></div>
+<section class="section"><div class="wrap submission-list">
+  <nav class="admin-filters" aria-label="Lọc bài viết">
+    <a class="{{ 'active' if status_filter == 'pending' }}" href="{{ url_for('admin_submissions', status='pending') }}">Chờ duyệt</a>
+    <a class="{{ 'active' if status_filter == 'published' }}" href="{{ url_for('admin_submissions', status='published') }}">Đã duyệt</a>
+    <a class="{{ 'active' if status_filter == 'rejected' }}" href="{{ url_for('admin_submissions', status='rejected') }}">Từ chối</a>
+    <a class="{{ 'active' if status_filter == 'all' }}" href="{{ url_for('admin_submissions', status='all') }}">Tất cả</a>
+  </nav>
+  {% for item in submissions %}
+  <article class="submission-item admin-item">
+    <div>
+      <span class="tag {{ item['category'] }}">{{ CATEGORY_LABELS.get(item['category'], item['category']) }}</span>
+      <h2>{{ item['title'] }}</h2>
+      <p>{{ item['excerpt'] }}</p>
+      <small>{{ item['author_name'] }} · {{ item['author_email'] }} · {{ item['status'] }}</small>
+    </div>
+    <div class="admin-actions">
+      <button type="button" class="btn btn-outline preview-submission-btn" data-content="{{ item['content']|replace('"', '\\"')|replace('\n', '\\n') }}">Xem trước</button>
+      {% if item['status'] == 'pending' %}
+        <form method="post" action="{{ url_for('moderate_submission', submission_id=item['id'], action='publish') }}"><button class="btn btn-primary" type="submit">Duyệt đăng</button></form>
+        <form method="post" action="{{ url_for('moderate_submission', submission_id=item['id'], action='reject') }}"><button class="btn btn-outline" type="submit">Từ chối</button></form>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <p>Chưa có bài nào được gửi.</p>
+  {% endfor %}
+</div></section>
+
+<div id="admin-preview-modal" class="preview-modal" hidden>
+  <div class="preview-modal-backdrop" data-close="true"></div>
+  <div class="preview-modal-panel admin-preview-panel">
+    <div class="preview-modal-header">
+      <strong>Xem trước bài viết</strong>
+      <button type="button" id="admin-close-preview" class="mini-btn">Đóng</button>
+    </div>
+    <div id="admin-preview-content" class="modal-preview-content"></div>
+  </div>
+</div>
+
+<script>
+  const previewButtons = document.querySelectorAll('.preview-submission-btn');
+  const adminPreviewModal = document.getElementById('admin-preview-modal');
+  const adminPreviewContent = document.getElementById('admin-preview-content');
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function renderSubmissionPreview(markdownText) {
+    const blocks = markdownText ? markdownText.split(/\n\s*\n/) : [''];
+    let html = '';
+    blocks.forEach((block) => {
+      const line = block.trim();
+      if (!line) return;
+      if (line.startsWith('## ')) {
+        html += '<h4>' + escapeHtml(line.replace(/^##\s*/, '')) + '</h4>';
+      } else if (line.startsWith('> ')) {
+        html += '<blockquote>' + escapeHtml(line.replace(/^>\s*/, '')) + '</blockquote>';
+      } else if (line.startsWith('- ')) {
+        const items = block.split(/\n/).filter((item) => item.trim().startsWith('- ')).map((item) => '<li>' + escapeHtml(item.replace(/^-\s*/, '')) + '</li>').join('');
+        if (items) html += '<ul>' + items + '</ul>';
+      } else if (/^!\[(.*)\]\((.*)\)$/.test(line)) {
+        const match = line.match(/^!\[(.*)\]\((.*)\)$/);
+        html += '<figure class="preview-figure"><img src="' + escapeHtml(match[2]) + '" alt="' + escapeHtml(match[1] || 'Ảnh bài viết') + '"></figure>';
+      } else {
+        html += '<p>' + escapeHtml(line) + '</p>';
+      }
+    });
+    return html;
+  }
+
+  previewButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const markdown = button.getAttribute('data-content') || '';
+      adminPreviewContent.innerHTML = renderSubmissionPreview(markdown.replace(/\\n/g, '\n'));
+      adminPreviewModal.hidden = false;
+    });
+  });
+
+  document.getElementById('admin-close-preview').addEventListener('click', () => {
+    adminPreviewModal.hidden = true;
+  });
+
+  adminPreviewModal.addEventListener('click', (event) => {
+    if (event.target.dataset.close === 'true') adminPreviewModal.hidden = true;
+  });
+</script>
+{% endblock %}

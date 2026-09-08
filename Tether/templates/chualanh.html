@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Chữa lành — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag chua-lanh">Chữa lành</span>
+    <h1>Đồng hành cùng bạn qua từng giai đoạn, không vội vàng</h1>
+    <p>Không có công thức chữa lành nào đúng cho tất cả — chỉ có những gợi ý nhỏ để bạn tự tìm ra cách của riêng mình.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <div class="card-grid">
+      {% for a in articles %}
+      <a class="article-card" href="{{ a.url }}">
+        <div class="thumb chua-lanh"></div>
+        <span class="tag chua-lanh">Chữa lành</span>
+        <h3>{{ a.title }}</h3>
+        <div class="card-meta"><span>{{ a.author }}</span><span class="dot"></span><span>{{ a.read_time }}</span></div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

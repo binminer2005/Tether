@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Đăng nhập — Tether{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1>Chào bạn quay lại</h1>
+    <p class="auth-sub">Đăng nhập để lưu bài viết và theo dõi tập radio, podcast yêu thích.</p>
+    <a class="google-login" href="{{ url_for('google_login') }}"><img width="25" height="25" src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt=""> <span>Tiếp tục với Google</span></a>
+    <div class="auth-divider"><span>hoặc đăng nhập bằng email</span></div>
+    <form method="post">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="ban@email.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Mật khẩu</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Đăng nhập</button>
+    </form>
+    <div class="auth-switch">
+      Chưa có tài khoản? <a href="{{ url_for('register') }}">Đăng ký ngay</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.sqlite3
+Tether/runtime
+Tether/client_secret_*.json
+Tether/users.json
+Tether/static/uploads/*

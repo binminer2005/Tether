@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Podcast — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag podcast">Podcast</span>
+    <h1 class="podcast-page-title">Podcast Tether<br>Những cuộc trò chuyện chậm,<br>để mình hiểu mình hơn</h1>
+    <p>Mỗi tập là một cuộc trò chuyện về những điều rất đỗi quen thuộc: một nỗi buồn, một lần thay đổi, một mối quan hệ, hay đơn giản là những ngày mình thấy lòng mình không được vui. Chỉ cần ngồi lại, lắng nghe và để mọi chuyện được kể theo cách tự nhiên nhất.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    {% for ep in episodes %}
+    <div class="episode-row" data-episode data-kind="podcast" data-id="{{ ep.id }}" data-title="{{ ep.title }}" data-audio="{{ ep.audio|default('', true) }}" data-detail-url="{{ url_for('listen', kind='podcast', episode_id=ep.id) }}">
+      <div class="episode-thumb"><div class="thumb podcast"></div></div>
+      <div class="episode-body">
+        <h3>{{ ep.title }}</h3>
+        <p>{{ ep.desc }}</p>
+        <div class="waveform" style="margin:8px 0;"></div>
+        <div class="episode-meta"><span>{{ ep.duration }}</span><span>·</span><span>{{ ep.guest }}</span></div>
+      </div>
+      <a class="episode-play" href="{{ url_for('listen', kind='podcast', episode_id=ep.id) }}" data-play-episode aria-label="Phát {{ ep.title }}">▶</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
