@@ -1,7 +1,25 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tether}
+      POSTGRES_USER: ${POSTGRES_USER:-tether}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   web:
     build: .
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - .env
     environment:
@@ -33,3 +51,6 @@ services:
       - ./Tether/static:/var/www/tether/static:ro
       - ./Tether/runtime/uploads:/var/www/tether/uploads:ro
       - ./Tether/runtime/Pics:/var/www/tether/Pics:ro
+
+volumes:
+  postgres_data:

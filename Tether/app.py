@@ -5,7 +5,10 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse
 
+import psycopg
+from psycopg.rows import dict_row
 from flask import Flask, flash, g, has_app_context, redirect, render_template, request, send_from_directory, session, url_for
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -17,7 +20,9 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("TETHER_DATA_DIR", BASE_DIR))
+app.config["DATABASE_URL"] = os.environ.get("DATABASE_URL")
 app.config["DATABASE"] = Path(os.environ.get("DATABASE_PATH", DATA_DIR / "tether.sqlite3"))
+app.config["USE_POSTGRES"] = bool(app.config["DATABASE_URL"])
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
@@ -37,7 +42,9 @@ FONT_DIR = BASE_DIR / "Font"
 LOGO_DIR = BASE_DIR / "logo"
 PICS_DIR = Path(os.environ.get("TETHER_PICS_DIR", DATA_DIR / "Pics"))
 UPLOAD_DIR = Path(os.environ.get("TETHER_UPLOAD_DIR", BASE_DIR / "static" / "uploads"))
+RADIO_DIR = Path(os.environ.get("TETHER_RADIO_DIR", BASE_DIR / "Radio"))
 USERS_FILE = Path(os.environ.get("USERS_FILE", DATA_DIR / "users.json"))
+EPISODES_FILE = Path(os.environ.get("EPISODES_FILE", BASE_DIR / "episodes.json"))
 PICS_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.config["DATABASE"].parent.mkdir(parents=True, exist_ok=True)
@@ -56,89 +63,250 @@ if app.config["GOOGLE_CLIENT_ID"] and app.config["GOOGLE_CLIENT_SECRET"]:
 PASSWORD_HASH_METHOD = "scrypt"
 
 
+class PostgresCompatConnection:
+    """Allow SQLite-style queries to run against a psycopg connection."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, query, params=(), *args, **kwargs):
+        if "?" in query:
+            query = re.sub(r"(?<!\?)\?(?!\?)", "%s", query)
+        if "datetime('now')" in query:
+            query = query.replace("datetime('now')", "NOW()")
+        if "datetime('now','localtime')" in query:
+            query = query.replace("datetime('now','localtime')", "NOW()")
+        return self._conn.execute(query, params, *args, **kwargs)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
 def hash_password(password):
     return generate_password_hash(password, method=PASSWORD_HASH_METHOD)
 
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(app.config["DATABASE"])
-        g.db.row_factory = sqlite3.Row
+        if app.config["USE_POSTGRES"]:
+            g.db = PostgresCompatConnection(psycopg.connect(app.config["DATABASE_URL"], row_factory=dict_row))
+        else:
+            g.db = sqlite3.connect(app.config["DATABASE"])
+            g.db.row_factory = sqlite3.Row
     return g.db
+
+
+def table_has_column(db, table_name, column_name):
+    if app.config["USE_POSTGRES"]:
+        row = db.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s LIMIT 1",
+            (table_name, column_name),
+        ).fetchone()
+        return row is not None
+    row = db.execute("PRAGMA table_info(?)", (table_name,)).fetchone()
+    if row is None:
+        return False
+    return any(item[1] == column_name for item in db.execute(f"PRAGMA table_info({table_name})").fetchall())
 
 
 def init_db():
     db = get_db()
-    db.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            google_id TEXT UNIQUE,
-            avatar_url TEXT,
-            role TEXT NOT NULL DEFAULT 'user',
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            category TEXT NOT NULL,
-            excerpt TEXT NOT NULL,
-            content TEXT NOT NULL,
-            content_json TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        );
-        CREATE TABLE IF NOT EXISTS editorial_articles (
-            id INTEGER PRIMARY KEY,
-            title TEXT NOT NULL,
-            category TEXT NOT NULL,
-            category_label TEXT,
-            excerpt TEXT,
-            author TEXT,
-            read_time TEXT,
-            image TEXT,
-            source_json TEXT,
-            editorial_json TEXT,
-            status TEXT NOT NULL DEFAULT 'published',
-            published_at TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS editorial_article_blocks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_id INTEGER NOT NULL,
-            sort_order INTEGER NOT NULL,
-            block_type TEXT NOT NULL,
-            heading TEXT,
-            text TEXT,
-            items_json TEXT,
-            image_src TEXT,
-            alt_text TEXT,
-            FOREIGN KEY (article_id) REFERENCES editorial_articles (id) ON DELETE CASCADE
-        );
-        """
-    )
-    submission_columns = {row["name"] for row in db.execute("PRAGMA table_info(submissions)")}
-    if "content_json" not in submission_columns:
-        db.execute("ALTER TABLE submissions ADD COLUMN content_json TEXT")
-    columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
-    if "google_id" not in columns:
-        db.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
-    if "avatar_url" not in columns:
-        db.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
-    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_articles_category ON editorial_articles (category)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_article_blocks_article ON editorial_article_blocks (article_id, sort_order)")
+    if app.config["USE_POSTGRES"]:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                google_id TEXT UNIQUE,
+                avatar_url TEXT,
+                role TEXT NOT NULL DEFAULT 'user',
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS submissions (
+                id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                excerpt TEXT NOT NULL,
+                content TEXT NOT NULL,
+                content_json TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            );
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editorial_articles (
+                id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                category_label TEXT,
+                excerpt TEXT,
+                author TEXT,
+                read_time TEXT,
+                image TEXT,
+                source_json TEXT,
+                editorial_json TEXT,
+                status TEXT NOT NULL DEFAULT 'published',
+                published_at TEXT,
+                is_featured INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT
+            );
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editorial_article_blocks (
+                id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                article_id INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL,
+                block_type TEXT NOT NULL,
+                heading TEXT,
+                text TEXT,
+                items_json TEXT,
+                image_src TEXT,
+                alt_text TEXT,
+                FOREIGN KEY (article_id) REFERENCES editorial_articles (id) ON DELETE CASCADE
+            );
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS episodes (
+                episode_id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                episode_number INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                duration TEXT NOT NULL,
+                guest TEXT NOT NULL,
+                audio TEXT,
+                youtube_url TEXT,
+                UNIQUE (kind, episode_number)
+            );
+            """
+        )
+        if not table_has_column(db, "submissions", "content_json"):
+            db.execute("ALTER TABLE submissions ADD COLUMN content_json TEXT")
+        if not table_has_column(db, "editorial_articles", "is_featured"):
+            db.execute("ALTER TABLE editorial_articles ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
+        if not table_has_column(db, "episodes", "youtube_url"):
+            db.execute("ALTER TABLE episodes ADD COLUMN youtube_url TEXT")
+        if not table_has_column(db, "users", "google_id"):
+            db.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+        if not table_has_column(db, "users", "avatar_url"):
+            db.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_articles_category ON editorial_articles (category)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_article_blocks_article ON editorial_article_blocks (article_id, sort_order)")
+    else:
+        db.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                google_id TEXT UNIQUE,
+                avatar_url TEXT,
+                role TEXT NOT NULL DEFAULT 'user',
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                excerpt TEXT NOT NULL,
+                content TEXT NOT NULL,
+                content_json TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            );
+            CREATE TABLE IF NOT EXISTS editorial_articles (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                category_label TEXT,
+                excerpt TEXT,
+                author TEXT,
+                read_time TEXT,
+                image TEXT,
+                source_json TEXT,
+                editorial_json TEXT,
+                status TEXT NOT NULL DEFAULT 'published',
+                published_at TEXT,
+                is_featured INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS editorial_article_blocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL,
+                block_type TEXT NOT NULL,
+                heading TEXT,
+                text TEXT,
+                items_json TEXT,
+                image_src TEXT,
+                alt_text TEXT,
+                FOREIGN KEY (article_id) REFERENCES editorial_articles (id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS episodes (
+                episode_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                episode_number INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                duration TEXT NOT NULL,
+                guest TEXT NOT NULL,
+                audio TEXT,
+                youtube_url TEXT,
+                UNIQUE (kind, episode_number)
+            );
+            """
+        )
+        submission_columns = {row["name"] for row in db.execute("PRAGMA table_info(submissions)")}
+        if "content_json" not in submission_columns:
+            db.execute("ALTER TABLE submissions ADD COLUMN content_json TEXT")
+        editorial_columns = {row["name"] for row in db.execute("PRAGMA table_info(editorial_articles)")}
+        if "is_featured" not in editorial_columns:
+            db.execute("ALTER TABLE editorial_articles ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
+        episode_columns = {row["name"] for row in db.execute("PRAGMA table_info(episodes)")}
+        if "youtube_url" not in episode_columns:
+            db.execute("ALTER TABLE episodes ADD COLUMN youtube_url TEXT")
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(users)")}
+        if "google_id" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+        if "avatar_url" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users (google_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_articles_category ON editorial_articles (category)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_editorial_article_blocks_article ON editorial_article_blocks (article_id, sort_order)")
+    seed_episodes(db)
     admin_email = os.environ.get("ADMIN_EMAIL")
     admin_password = os.environ.get("ADMIN_PASSWORD")
     if admin_email and admin_password:
         db.execute(
-            "INSERT OR IGNORE INTO users (name, email, password_hash, role, created_at) VALUES (?, ?, ?, 'admin', ?)",
+            "INSERT INTO users (name, email, password_hash, role, created_at) VALUES (%s, %s, %s, 'admin', %s) ON CONFLICT (email) DO NOTHING"
+            if app.config["USE_POSTGRES"]
+            else "INSERT OR IGNORE INTO users (name, email, password_hash, role, created_at) VALUES (?, ?, ?, 'admin', ?)",
             ("Quản trị viên", admin_email.lower().strip(), hash_password(admin_password), datetime.now(timezone.utc).isoformat()),
         )
     if USERS_FILE.exists():
@@ -156,15 +324,59 @@ def init_db():
                 password_env = configured_user.get("password_env", "")
                 if not email or not name or role not in {"user", "admin"}:
                     continue
-                existing_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+                existing_user = db.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone() if app.config["USE_POSTGRES"] else db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
                 if existing_user:
-                    db.execute("UPDATE users SET name = ?, role = ? WHERE id = ?", (name, role, existing_user["id"]))
+                    db.execute("UPDATE users SET name = %s, role = %s WHERE id = %s", (name, role, existing_user["id"])) if app.config["USE_POSTGRES"] else db.execute("UPDATE users SET name = ?, role = ? WHERE id = ?", (name, role, existing_user["id"]))
                 elif password_env and os.environ.get(password_env):
                     db.execute(
-                        "INSERT INTO users (name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
+                        "INSERT INTO users (name, email, password_hash, role, created_at) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (email) DO NOTHING"
+                        if app.config["USE_POSTGRES"]
+                        else "INSERT INTO users (name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
                         (name, email, hash_password(os.environ[password_env]), role, datetime.now(timezone.utc).isoformat()),
                     )
     db.commit()
+
+
+def seed_episodes(db):
+    if not EPISODES_FILE.exists():
+        return
+    try:
+        episodes = json.loads(EPISODES_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(episodes, list):
+        return
+    for episode in episodes:
+        if not isinstance(episode, dict) or episode.get("kind") not in {"radio", "podcast"} or not episode.get("id"):
+            continue
+        values = (
+            episode.get("title", ""),
+            episode.get("desc", ""),
+            episode.get("duration", ""),
+            episode.get("guest", ""),
+            episode.get("audio", ""),
+            episode.get("youtube_url", ""),
+        )
+        existing = db.execute(
+            "SELECT episode_id FROM episodes WHERE kind = %s AND episode_number = %s"
+            if app.config["USE_POSTGRES"]
+            else "SELECT episode_id FROM episodes WHERE kind = ? AND episode_number = ?",
+            (episode["kind"], episode["id"]),
+        ).fetchone()
+        if existing:
+            db.execute(
+                "UPDATE episodes SET title = %s, description = %s, duration = %s, guest = %s, audio = %s, youtube_url = %s WHERE episode_id = %s"
+                if app.config["USE_POSTGRES"]
+                else "UPDATE episodes SET title = ?, description = ?, duration = ?, guest = ?, audio = ?, youtube_url = ? WHERE episode_id = ?",
+                values + (existing["episode_id"],),
+            )
+        else:
+            db.execute(
+                "INSERT INTO episodes (episode_number, kind, title, description, duration, guest, audio, youtube_url) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                if app.config["USE_POSTGRES"]
+                else "INSERT INTO episodes (episode_number, kind, title, description, duration, guest, audio, youtube_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (episode["id"], episode["kind"]) + values,
+            )
 
 
 @app.teardown_appcontext
@@ -261,6 +473,11 @@ def logos(filename):
 @app.route("/pics/<path:filename>")
 def pics(filename):
     return send_from_directory(PICS_DIR, filename)
+
+
+@app.route("/Radio/<path:filename>")
+def radio_audio(filename):
+    return send_from_directory(RADIO_DIR, filename)
 
 # ---------------------------------------------------------------------------
 # Dữ liệu mẫu
@@ -364,14 +581,22 @@ def load_editorial_articles_from_db():
         db = get_db()
         close_connection = False
     else:
-        db = sqlite3.connect(app.config["DATABASE"])
-        db.row_factory = sqlite3.Row
+        if app.config["USE_POSTGRES"]:
+            db = PostgresCompatConnection(psycopg.connect(app.config["DATABASE_URL"], row_factory=dict_row))
+        else:
+            db = sqlite3.connect(app.config["DATABASE"])
+            db.row_factory = sqlite3.Row
         close_connection = True
     try:
-        table_exists = db.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'editorial_articles'"
-        ).fetchone()
-        if table_exists is None:
+        if app.config["USE_POSTGRES"]:
+            table_exists = db.execute(
+                "SELECT to_regclass('public.editorial_articles') AS table_name"
+            ).fetchone()
+        else:
+            table_exists = db.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'editorial_articles'"
+            ).fetchone()
+        if table_exists is None or (app.config["USE_POSTGRES"] and table_exists["table_name"] is None):
             return []
 
         rows = db.execute(
@@ -417,6 +642,7 @@ def load_editorial_articles_from_db():
                 "source": source,
                 "editorial": editorial,
                 "blocks": blocks,
+                "is_featured": bool(row["is_featured"]) if "is_featured" in row.keys() else False,
             }
             article["url"] = f"/bai-viet/{article['id']}"
             articles.append(article)
@@ -457,59 +683,34 @@ def refresh_editorial_articles():
 with app.app_context():
     refresh_editorial_articles()
 
-RADIO_EPISODES = [
-    {
-        "id": 12,
-        "kind": "radio",
-        "title": "Tập 12 — Khi kiến thức không đủ để chữa lành",
-        "desc": "Một cuộc trò chuyện về ranh giới giữa hiểu biết lý thuyết và trải nghiệm chữa lành thật sự.",
-        "duration": "38 phút",
-        "guest": "cùng một nhà tâm lý học lâm sàng",
-    },
-    {
-        "id": 11,
-        "kind": "radio",
-        "title": "Tập 11 — Nỗi buồn mùa thu có thật hay không",
-        "desc": "Góc nhìn khoa học về rối loạn cảm xúc theo mùa, và vì sao tháng 9-10 lại dễ khiến ta chùng xuống.",
-        "duration": "29 phút",
-        "guest": "cùng biên tập viên Tether",
-    },
-    {
-        "id": 10,
-        "kind": "radio",
-        "title": "Tập 10 — Viết nhật ký có thực sự giúp ích?",
-        "desc": "Nhìn lại các nghiên cứu về expressive writing và cách áp dụng nó mà không biến nó thành áp lực.",
-        "duration": "24 phút",
-        "guest": "cùng một nhà nghiên cứu hành vi",
-    },
-]
+def load_episodes(kind=None):
+    query = "SELECT episode_number AS id, kind, title, description AS desc, duration, guest, audio, youtube_url FROM episodes"
+    params = ()
+    if kind:
+        query += " WHERE kind = ?"
+        params = (kind,)
+    return get_db().execute(query + " ORDER BY episode_number DESC", params).fetchall()
 
-PODCAST_EPISODES = [
-    {
-        "id": 11,
-        "kind": "podcast",
-        "title": "Tập 11 — Ranh giới không phải là ích kỷ",
-        "desc": "Một buổi trò chuyện dài với nhà trị liệu gia đình về cách thiết lập ranh giới mà không mang cảm giác tội lỗi.",
-        "duration": "52 phút",
-        "guest": "cùng một nhà trị liệu gia đình",
-    },
-    {
-        "id": 10,
-        "kind": "podcast",
-        "title": "Tập 10 — Làm việc chăm chỉ có phải là một dạng né tránh?",
-        "desc": "Khi sự bận rộn trở thành cách để không phải đối diện với những câu hỏi khó về bản thân.",
-        "duration": "47 phút",
-        "guest": "cùng một huấn luyện viên nghề nghiệp",
-    },
-    {
-        "id": 9,
-        "kind": "podcast",
-        "title": "Tập 09 — Lớn lên cùng một người mẹ cầu toàn",
-        "desc": "Khách mời chia sẻ hành trình gỡ rối những kỳ vọng được thừa hưởng từ gia đình.",
-        "duration": "44 phút",
-        "guest": "khách mời ẩn danh",
-    },
-]
+
+def youtube_embed_url(value):
+    """Return an embeddable YouTube URL only for supported YouTube hosts."""
+    if not value:
+        return None
+    parsed = urlparse(str(value).strip())
+    host = parsed.netloc.lower().removeprefix("www.")
+    video_id = ""
+    if host == "youtu.be":
+        video_id = parsed.path.strip("/").split("/")[0]
+    elif host in {"youtube.com", "m.youtube.com"}:
+        if parsed.path == "/watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        elif parsed.path.startswith("/embed/") or parsed.path.startswith("/shorts/"):
+            video_id = parsed.path.split("/")[2]
+    if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+        origin = request.host_url.rstrip("/")
+        query = urlencode({"origin": origin, "enablejsapi": "1"})
+        return f"https://www.youtube.com/embed/{video_id}?{query}"
+    return None
 
 
 def articles_by_category(cat):
@@ -622,14 +823,54 @@ def landingpage():
 @app.route("/home")
 def home():
     refresh_editorial_articles()
+    featured = next((article for article in ARTICLES if article.get("is_featured")), ARTICLES[0])
+    latest = [article for article in ARTICLES if article is not featured][:3]
     return render_template(
         "home.html",
         active="home",
-        featured=ARTICLES[0],
-        latest=ARTICLES[1:4],
-        radio_preview=RADIO_EPISODES[:1],
-        podcast_preview=PODCAST_EPISODES[:1],
+        featured=featured,
+        latest=latest,
+        radio_preview=load_episodes("radio")[:1],
+        podcast_preview=load_episodes("podcast")[:1],
     )
+
+
+@app.route("/tim-kiem")
+def search():
+    query = request.args.get("q", "").strip()
+    article_results = []
+    episode_results = []
+    if query:
+        query_terms = query.casefold().split()
+        article_results = [
+            article for article in article_cards()
+            if all(term in " ".join(
+                str(article.get(field, ""))
+                for field in ("title", "excerpt", "author", "category", "category_label")
+            ).casefold() for term in query_terms)
+        ]
+        for kind in ("radio", "podcast"):
+            for episode in load_episodes(kind):
+                searchable = " ".join(str(episode[field] or "") for field in ("title", "desc", "guest", "kind"))
+                if all(term in searchable.casefold() for term in query_terms):
+                    episode_results.append(episode)
+    return render_template(
+        "search.html",
+        active="search",
+        query=query,
+        article_results=article_results,
+        episode_results=episode_results,
+    )
+
+
+@app.route("/tai-khoan")
+@app.route("/profile")
+@login_required
+def profile():
+    submissions = get_db().execute(
+        "SELECT * FROM submissions WHERE user_id = ? ORDER BY id DESC", (g.user["id"],)
+    ).fetchall()
+    return render_template("profile.html", active="profile", submissions=submissions)
 
 
 @app.route("/dang-nhap", methods=["GET", "POST"])
@@ -661,16 +902,25 @@ def register():
         else:
             try:
                 db = get_db()
-                cursor = db.execute(
-                    "INSERT INTO users (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-                    (name, email, hash_password(password), datetime.now(timezone.utc).isoformat()),
-                )
-                db.commit()
-            except sqlite3.IntegrityError:
+                if app.config["USE_POSTGRES"]:
+                    cursor = db.execute(
+                        "INSERT INTO users (name, email, password_hash, created_at) VALUES (%s, %s, %s, %s) RETURNING id",
+                        (name, email, hash_password(password), datetime.now(timezone.utc).isoformat()),
+                    )
+                    db.commit()
+                    user_id = cursor.fetchone()["id"]
+                else:
+                    cursor = db.execute(
+                        "INSERT INTO users (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+                        (name, email, hash_password(password), datetime.now(timezone.utc).isoformat()),
+                    )
+                    db.commit()
+                    user_id = cursor.lastrowid
+            except (sqlite3.IntegrityError, psycopg.IntegrityError):
                 flash("Email này đã được đăng ký.", "error")
             else:
                 session.clear()
-                session["user_id"] = cursor.lastrowid
+                session["user_id"] = user_id
                 flash("Tài khoản đã được tạo.", "success")
                 return redirect(url_for("submit_article"))
     return render_template("register.html", active="register")
@@ -713,21 +963,37 @@ def complete_google_registration():
                 session.pop("pending_google", None)
                 flash("Email Google này đã được đăng ký. Vui lòng đăng nhập bằng email và mật khẩu.", "error")
                 return redirect(url_for("sign"))
-            cursor = db.execute(
-                "INSERT INTO users (name, email, password_hash, google_id, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    name,
-                    pending_google["email"],
-                    hash_password(password),
-                    pending_google["google_id"],
-                    pending_google.get("avatar_url"),
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
-            db.commit()
+            if app.config["USE_POSTGRES"]:
+                cursor = db.execute(
+                    "INSERT INTO users (name, email, password_hash, google_id, avatar_url, created_at) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                    (
+                        name,
+                        pending_google["email"],
+                        hash_password(password),
+                        pending_google["google_id"],
+                        pending_google.get("avatar_url"),
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                db.commit()
+                user_id = cursor.fetchone()["id"]
+            else:
+                cursor = db.execute(
+                    "INSERT INTO users (name, email, password_hash, google_id, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        name,
+                        pending_google["email"],
+                        hash_password(password),
+                        pending_google["google_id"],
+                        pending_google.get("avatar_url"),
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                db.commit()
+                user_id = cursor.lastrowid
             next_url = pending_google.get("next") or url_for("home")
             session.clear()
-            session["user_id"] = cursor.lastrowid
+            session["user_id"] = user_id
             flash("Tài khoản Google đã được tạo thành công.", "success")
             return redirect(next_url)
     return render_template(
@@ -818,8 +1084,6 @@ def my_submissions():
     return render_template("my_submissions.html", active="submit", submissions=submissions)
 
 
-@app.route("/quan-tri/bai-viet")
-@admin_required
 def article_dict_from_db_row(row):
     """Convert a sqlite row into the public article shape used by the templates."""
     source = json.loads(row["source_json"]) if row["source_json"] else {}
@@ -893,6 +1157,7 @@ def admin_editorial_articles():
                 image = f"/pics/{image_filename}"
         published_at = request.form.get("published_at", "").strip() or datetime.now(timezone.utc).date().isoformat()
         status = request.form.get("status", "published").strip() or "published"
+        is_featured = request.form.get("is_featured") == "1"
         markdown = request.form.get("content", "").strip()
         if uploaded_image and image and image_filename:
             markdown = f"{markdown}\n\n![{image_filename}]({image})"
@@ -912,32 +1177,76 @@ def admin_editorial_articles():
             "source": {"type": "editorial", "label": "Tether biên soạn", "author_name": author, "author_role": "editor"},
             "editorial": {"status": status, "reviewed": True, "reviewed_by": "Tether", "published_at": published_at},
             "blocks": content_to_blocks(markdown),
+            "is_featured": is_featured,
         }
         if article_payload["id"] is None:
             article_payload["id"] = db.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM editorial_articles").fetchone()[0]
-        db.execute(
-            """
-            INSERT OR REPLACE INTO editorial_articles (
-                id, title, category, category_label, excerpt, author, read_time, image,
-                source_json, editorial_json, status, published_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-            """,
-            (
-                article_payload["id"],
-                article_payload["title"],
-                article_payload["category"],
-                article_payload["category_label"],
-                article_payload["excerpt"],
-                author,
-                article_payload["read_time"],
-                article_payload["image"],
-                json.dumps(article_payload["source"], ensure_ascii=False),
-                json.dumps(article_payload["editorial"], ensure_ascii=False),
-                status,
-                published_at,
-                datetime.now(timezone.utc).isoformat(),
-            ),
-        )
+        if app.config["USE_POSTGRES"]:
+            db.execute(
+                """
+                INSERT INTO editorial_articles (
+                    id, title, category, category_label, excerpt, author, read_time, image,
+                    source_json, editorial_json, status, is_featured, published_at, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    category = EXCLUDED.category,
+                    category_label = EXCLUDED.category_label,
+                    excerpt = EXCLUDED.excerpt,
+                    author = EXCLUDED.author,
+                    read_time = EXCLUDED.read_time,
+                    image = EXCLUDED.image,
+                    source_json = EXCLUDED.source_json,
+                    editorial_json = EXCLUDED.editorial_json,
+                    status = EXCLUDED.status,
+                    is_featured = EXCLUDED.is_featured,
+                    published_at = EXCLUDED.published_at,
+                    updated_at = NOW()
+                """,
+                (
+                    article_payload["id"],
+                    article_payload["title"],
+                    article_payload["category"],
+                    article_payload["category_label"],
+                    article_payload["excerpt"],
+                    author,
+                    article_payload["read_time"],
+                    article_payload["image"],
+                    json.dumps(article_payload["source"], ensure_ascii=False),
+                    json.dumps(article_payload["editorial"], ensure_ascii=False),
+                    status,
+                    is_featured,
+                    published_at,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        else:
+            db.execute(
+                """
+                INSERT OR REPLACE INTO editorial_articles (
+                    id, title, category, category_label, excerpt, author, read_time, image,
+                    source_json, editorial_json, status, is_featured, published_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                """,
+                (
+                    article_payload["id"],
+                    article_payload["title"],
+                    article_payload["category"],
+                    article_payload["category_label"],
+                    article_payload["excerpt"],
+                    author,
+                    article_payload["read_time"],
+                    article_payload["image"],
+                    json.dumps(article_payload["source"], ensure_ascii=False),
+                    json.dumps(article_payload["editorial"], ensure_ascii=False),
+                    status,
+                    is_featured,
+                    published_at,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        if is_featured:
+            db.execute("UPDATE editorial_articles SET is_featured = 0 WHERE id != ?", (article_payload["id"],))
         db.execute("DELETE FROM editorial_article_blocks WHERE article_id = ?", (article_payload["id"],))
         for order_index, block in enumerate(article_payload["blocks"]):
             block_type = block.get("type") or "paragraph"
@@ -1073,17 +1382,17 @@ def chua_lanh():
 
 @app.route("/radio")
 def radio():
-    return render_template("radio.html", active="radio", episodes=RADIO_EPISODES)
+    return render_template("radio.html", active="radio", episodes=load_episodes("radio"))
 
 
 @app.route("/podcast")
 def podcast():
-    return render_template("podcast.html", active="podcast", episodes=PODCAST_EPISODES)
+    return render_template("podcast.html", active="podcast", episodes=load_episodes("podcast"))
 
 
 @app.route("/listen/<kind>/<int:episode_id>")
 def listen(kind, episode_id):
-    episode_list = RADIO_EPISODES if kind == "radio" else PODCAST_EPISODES if kind == "podcast" else []
+    episode_list = load_episodes(kind) if kind in {"radio", "podcast"} else []
     episode = next((item for item in episode_list if item["id"] == episode_id), None)
     if episode is None:
         return redirect(url_for("radio" if kind == "radio" else "podcast"))
@@ -1094,6 +1403,7 @@ def listen(kind, episode_id):
         episode=episode,
         episodes=episode_list,
         kind_label="Radio" if kind == "radio" else "Podcast",
+        youtube_embed_url=youtube_embed_url(episode["youtube_url"]),
     )
 
 

@@ -17,6 +17,7 @@ COPY Tether/requirements.txt /app/Tether/requirements.txt
 RUN pip install --upgrade pip && pip install -r /app/Tether/requirements.txt
 
 COPY Tether/ /app/Tether/
+COPY migrate_sqlite_to_postgres.py /app/migrate_sqlite_to_postgres.py
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh && mkdir -p /app/data/uploads /app/data/Pics && chown -R tether:tether /app
 

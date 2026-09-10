@@ -26,9 +26,11 @@
 
   <div class="wrap article-layout">
     <div class="article-content">
+      {% set heading_number = namespace(value=0) %}
       {% for block in article.blocks|default([], true) %}
       {% if block.type == 'heading' %}
-      <section class="article-section" id="block-{{ loop.index }}"><h2>{{ block.text }}</h2></section>
+      {% set heading_number.value = heading_number.value + 1 %}
+      <section class="article-section" id="article-heading-{{ heading_number.value }}"><h2>{{ block.text }}</h2></section>
       {% elif block.type == 'paragraph' %}
       <p>{{ block.text }}</p>
       {% elif block.type == 'quote' %}
@@ -72,8 +74,12 @@
         {% for section in article.sections|default([], true) if not article.blocks|default([], true) %}
         <li><a href="#section-{{ loop.index }}">{{ section.heading }}</a></li>
         {% endfor %}
+        {% set heading_number = namespace(value=0) %}
         {% for block in article.blocks|default([], true) %}
-        {% if block.type == 'heading' %}<li><a href="#block-{{ loop.index }}">{{ block.text }}</a></li>{% endif %}
+        {% if block.type == 'heading' %}
+        {% set heading_number.value = heading_number.value + 1 %}
+        <li><a href="#article-heading-{{ heading_number.value }}">{{ block.text }}</a></li>
+        {% endif %}
         {% endfor %}
       </ol>
     </aside>

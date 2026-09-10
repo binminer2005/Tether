@@ -15,7 +15,7 @@
       <img src="{{ url_for('logos', filename='Logo.png', v=asset_version('logo/Logo.png')) }}" alt="Tether">
     </a>
 
-    <nav class="main-nav">
+    <nav class="main-nav" aria-label="Điều hướng chính">
       <ul>
         <li><a class="nav-link {{ 'active' if active=='home' }}" href="{{ url_for('home') }}">Trang chủ</a></li>
         <li class="has-dropdown">
@@ -33,18 +33,40 @@
     </nav>
 
     <div class="nav-actions">
+      <form class="nav-search" action="{{ url_for('search') }}" method="get" role="search">
+        <label class="sr-only" for="nav-search-input">Tìm kiếm</label>
+        <input id="nav-search-input" name="q" type="search" value="{{ request.args.get('q', '') }}" placeholder="Tìm kiếm..." autocomplete="off">
+        <button type="submit" aria-label="Tìm kiếm">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 5 5"></path></svg>
+        </button>
+      </form>
       {% if current_user %}
-      <a href="{{ url_for('submit_article') }}" class="btn btn-outline">Viết bài</a>
-      {% if current_user['role'] == 'admin' %}
-      <a href="{{ url_for('admin_submissions') }}" class="btn btn-outline">Duyệt bài</a>
-      <a href="{{ url_for('admin_editorial_articles') }}" class="btn btn-outline">Quản lý bài</a>
-      {% endif %}
-      <a href="{{ url_for('logout') }}" class="btn btn-primary">Đăng xuất</a>
+      <details class="user-menu">
+        <summary class="user-menu-trigger" aria-label="Mở menu tài khoản">
+          <span class="user-avatar">{{ current_user['name'][:1]|upper }}</span>
+          <span class="user-menu-label">Tài khoản</span>
+          <span class="user-menu-chevron" aria-hidden="true"></span>
+        </summary>
+        <div class="user-menu-panel">
+          <div class="user-menu-heading"><strong>{{ current_user['name'] }}</strong><small>{{ current_user['email'] }}</small></div>
+          <a href="{{ url_for('profile') }}">Trang cá nhân</a>
+          <a href="{{ url_for('submit_article') }}">Viết bài mới</a>
+          {% if current_user['role'] == 'admin' %}
+          <span class="user-menu-divider"></span>
+          <a href="{{ url_for('admin_submissions') }}">Duyệt bài</a>
+          <a href="{{ url_for('admin_editorial_articles') }}">Quản lý bài</a>
+          {% endif %}
+          <span class="user-menu-divider"></span>
+          <a class="user-menu-logout" href="{{ url_for('logout') }}">Đăng xuất</a>
+        </div>
+      </details>
       {% else %}
-      <a href="{{ url_for('sign') }}" class="btn btn-outline">Đăng nhập</a>
-      <a href="{{ url_for('register') }}" class="btn btn-primary">Đăng ký</a>
+      <div class="guest-actions">
+        <a href="{{ url_for('sign') }}" class="btn btn-ghost">Đăng nhập</a>
+        <a href="{{ url_for('register') }}" class="btn btn-primary">Đăng ký</a>
+      </div>
       {% endif %}
-      <button class="menu-toggle" aria-label="Mở menu">☰</button>
+      <button class="menu-toggle" type="button" aria-label="Mở menu" aria-expanded="false">☰</button>
     </div>
   </div>
 </header>
@@ -127,11 +149,18 @@
     <button class="audio-control audio-skip" type="button" data-player-next aria-label="Tập tiếp theo">▶|</button>
   </div>
   <div class="audio-player-track">
-    <div class="audio-progress"><span data-player-progress></span></div>
+    <div class="audio-time" aria-live="off">
+      <span data-player-current>0:00</span>
+      <span>/</span>
+      <span data-player-duration>0:00</span>
+    </div>
+    <div class="audio-progress" data-player-seek role="slider" tabindex="0" aria-label="Tua audio" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 / 0:00">
+      <span data-player-progress></span>
+    </div>
   </div>
   <button class="audio-control audio-close" type="button" data-player-close aria-label="Đóng trình phát">×</button>
 </div>
 
-<script src="{{ url_for('static', filename='js/main.js', v='2') }}"></script>
+<script src="{{ url_for('static', filename='js/main.js', v=asset_version('static/js/main.js')) }}"></script>
 </body>
 </html>

@@ -2,3 +2,4 @@ Flask
 Authlib==1.8.0
 requests
 gunicorn==23.0.0
+psycopg[binary]==3.3.5

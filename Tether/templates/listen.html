@@ -10,6 +10,18 @@
       <h1>{{ episode.title }}</h1>
       <p class="listen-lead">{{ episode.desc }}</p>
       <div class="listen-meta"><span>{{ episode.duration }}</span><span>·</span><span>{{ episode.guest }}</span></div>
+      {% if kind == "podcast" and youtube_embed_url %}
+      <section class="podcast-video" aria-labelledby="podcast-video-title">
+        <div class="podcast-video-heading">
+          <h2 id="podcast-video-title">Video podcast</h2>
+        </div>
+        <div class="podcast-video-frame">
+          <iframe src="{{ youtube_embed_url }}" title="Video podcast: {{ episode.title }}" loading="lazy" referrerpolicy="origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allow="fullscreen; autoplay" allowfullscreen></iframe>
+        </div>
+        <a class="podcast-video-link" href="{{ episode.youtube_url }}" target="_blank" rel="noopener noreferrer">Mở video trên YouTube</a>
+      </section>
+      {% endif %}
+      {% if kind != "podcast" %}
       <div class="listen-console" data-episode data-kind="{{ kind }}" data-id="{{ episode.id }}" data-title="{{ episode.title }}" data-audio="{{ episode.audio|default('', true) }}">
         {% if kind == "radio" %}
         <div class="listen-cover {{ kind }} listen-cover-image"><img src="{{ versioned_image_url('/pics/Reconnect.jpg') }}" alt="Radio Tether"></div>
@@ -24,6 +36,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
     </div>
     <aside class="listen-queue">
       <span class="aside-label">Tiếp theo</span>

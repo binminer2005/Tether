@@ -5,7 +5,6 @@
   <div class="wrap">
     <span class="tag chua-lanh">Quản trị</span>
     <h1>Quản lý bài viết</h1>
-    <p>Thêm, sửa, xóa bài viết từ SQLite trực tiếp.</p>
   </div>
 </div>
 
@@ -42,7 +41,7 @@
           <label>
             <span>Ảnh</span>
             <input id="article-image" type="file" name="image" accept="image/*">
-            {% if editing and editing['image'] %}<small class="admin-image-current">Ảnh hiện tại: {{ editing['image'] }}</small>{% endif %}
+            {% if editing and editing['image'] %}<small class="admin-image-current">Đường dẫn ảnh: {{ editing['image'] }}</small>{% endif %}
           </label>
           <label>
             <span>Ngày xuất bản</span>
@@ -54,6 +53,10 @@
               <option value="published" {% if not editing or editing['status'] == 'published' %}selected{% endif %}>Published</option>
               <option value="draft" {% if editing and editing['status'] == 'draft' %}selected{% endif %}>Draft</option>
             </select>
+          </label>
+          <label class="checkbox-field">
+            <span>Nổi bật trên trang chủ</span>
+            <input type="checkbox" name="is_featured" value="1" {% if editing and editing['is_featured'] %}checked{% endif %}>
           </label>
         </div>
 

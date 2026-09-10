@@ -1,0 +1,56 @@
+[
+  {
+    "id": 12,
+    "kind": "radio",
+    "title": "Video Mẫu #3: Dalat Radio",
+    "desc": "Một cuộc trò chuyện về ranh giới giữa hiểu biết lý thuyết và trải nghiệm chữa lành thật sự.",
+    "duration": "38 phút",
+    "guest": "Tether team",
+    "audio": "/Radio/Video3.mp3"
+  },
+  {
+    "id": 11,
+    "kind": "radio",
+    "title": "Video Mẫu #2: Dalat Radio",
+    "desc": "Góc nhìn khoa học về rối loạn cảm xúc theo mùa, và vì sao tháng 9-10 lại dễ khiến ta chùng xuống.",
+    "duration": "29 phút",
+    "guest": "cùng biên tập viên Tether",
+    "audio": ""
+  },
+  {
+    "id": 10,
+    "kind": "radio",
+    "title": "Video Mẫu #1: Dalat Radio",
+    "desc": "Nhìn lại các nghiên cứu về expressive writing và cách áp dụng nó mà không biến nó thành áp lực.",
+    "duration": "24 phút",
+    "guest": "cùng một nhà nghiên cứu hành vi",
+    "audio": ""
+  },
+  {
+    "id": 11,
+    "kind": "podcast",
+    "title": "Video Mẫu #1: Hướng dẫn sử dụng chèn youtube vào podcast",
+    "desc": "Một buổi trò chuyện dài với nhà trị liệu gia đình về cách thiết lập ranh giới mà không mang cảm giác tội lỗi.",
+    "duration": "52 phút",
+    "guest": "cùng một nhà trị liệu gia đình",
+    "youtube_url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ"
+  },
+  {
+    "id": 10,
+    "kind": "podcast",
+    "title": "Những cách bao bọc đứa trẻ bên trong mình là gì? - MCK | #HaveASip 117",
+    "desc": "Khi sự bận rộn trở thành cách để không phải đối diện với những câu hỏi khó về bản thân.",
+    "duration": "47 phút",
+    "guest": "MCK",
+    "youtube_url": "https://www.youtube.com/watch?v=RU_FrFfkJec&t=1227s"
+  },
+  {
+    "id": 9,
+    "kind": "podcast",
+    "title": "Tại sao chúng ta lại bị mắc kẹt trong những kỳ vọng của gia đình? - low G | #HaveASip 116",
+    "desc": "Khách mời chia sẻ hành trình gỡ rối những kỳ vọng được thừa hưởng từ gia đình.",
+    "duration": "53 phút",
+    "guest": "low G",
+    "youtube_url": "https://www.youtube.com/watch?v=k9XLB_Z7JaQ"
+  }
+]

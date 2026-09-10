@@ -19,7 +19,7 @@
         <h3>{{ ep.title }}</h3>
         <p>{{ ep.desc }}</p>
         <div class="waveform" style="margin:8px 0;"></div>
-        <div class="episode-meta"><span>{{ ep.duration }}</span><span>·</span><span>{{ ep.guest }}</span></div>
+        <div class="episode-meta"><span>{{ ep.duration }}</span><span>·</span><span>{{ ep.guest }}</span>{% if ep.youtube_url %}<span class="episode-video-label">Video</span>{% endif %}</div>
       </div>
       <a class="episode-play" href="{{ url_for('listen', kind='podcast', episode_id=ep.id) }}" data-play-episode aria-label="Phát {{ ep.title }}">▶</a>
     </div>

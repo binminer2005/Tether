@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tìm kiếm{% if query %} — {{ query }}{% endif %} — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header search-header">
+  <div class="wrap">
+    <span class="tag hoc-thuat">Khám phá</span>
+    <h1>Tìm điều bạn muốn đọc hoặc nghe</h1>
+    <form class="search-page-form" action="{{ url_for('search') }}" method="get" role="search">
+      <label class="sr-only" for="page-search-input">Từ khóa tìm kiếm</label>
+      <input id="page-search-input" name="q" type="search" value="{{ query }}" placeholder="Ví dụ: cảm xúc, ranh giới, chữa lành..." autofocus>
+      <button class="btn btn-primary" type="submit">Tìm kiếm</button>
+    </form>
+  </div>
+</div>
+
+{% if query %}
+<section class="section search-results">
+  <div class="wrap">
+    <p class="search-summary">Kết quả cho <strong>“{{ query }}”</strong>: {{ article_results|length + episode_results|length }} nội dung</p>
+    {% if article_results %}
+    <div class="section-head"><h2>Bài viết</h2></div>
+    <div class="card-grid search-article-grid">
+      {% for article in article_results %}
+      <a class="article-card search-result-card" href="{{ article.url }}">
+        <div class="thumb {{ article.category }}">{% if article.image %}<img src="{{ versioned_image_url(article.image) }}" alt="{{ article.title }}">{% endif %}</div>
+        <span class="tag {{ article.category }}">{{ article.category_label }}</span>
+        <h3>{{ article.title }}</h3>
+        <p>{{ article.excerpt }}</p>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if episode_results %}
+    <div class="section-head search-list-heading"><h2>Radio &amp; Podcast</h2></div>
+    <div class="search-episode-list">
+      {% for episode in episode_results %}
+      <a class="search-episode" href="{{ url_for('listen', kind=episode.kind, episode_id=episode.id) }}">
+        <span class="search-episode-kind tag {{ episode.kind }}">{{ episode.kind|title }}</span>
+        <span class="search-episode-copy"><strong>{{ episode.title }}</strong><small>{{ episode.desc }}</small></span>
+        <span class="search-episode-meta">{{ episode.duration }} <b>→</b></span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if not article_results and not episode_results %}
+    <div class="search-empty"><h2>Chưa tìm thấy nội dung phù hợp</h2><p>Thử một từ khóa khác hoặc tìm theo tên chuyên mục.</p></div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

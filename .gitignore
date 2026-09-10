@@ -9,10 +9,13 @@ __pycache__/
 .env.*
 !.env.example
 Tether/client_secret_*.json
+Tether/credentials.json
 Tether/users.json
+Tether/__pycache__/
 
 # Runtime data and local databases
 Tether/runtime/
+Tether/uploads/
 *.sqlite3
 *.db
 

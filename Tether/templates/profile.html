@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Trang cá nhân — Tether{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="wrap">
+    <span class="tag hoc-thuat">Tài khoản</span>
+    <h1>Trang cá nhân</h1>
+    <p>Thông tin của bạn và những bài viết bạn đã gửi đến Tether.</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap profile-layout">
+    <aside class="profile-card">
+      <div class="profile-avatar">
+        {% if current_user['avatar_url'] %}
+        <img src="{{ current_user['avatar_url'] }}" alt="Ảnh đại diện của {{ current_user['name'] }}">
+        {% else %}
+        {{ current_user['name'][:1]|upper }}
+        {% endif %}
+      </div>
+      <h2>{{ current_user['name'] }}</h2>
+      <p class="profile-role">{{ 'Quản trị viên' if current_user['role'] == 'admin' else 'Thành viên Tether' }}</p>
+      <dl class="profile-details">
+        <div><dt>Email</dt><dd>{{ current_user['email'] }}</dd></div>
+        <div><dt>Tham gia từ</dt><dd>{{ current_user['created_at'][:10] }}</dd></div>
+      </dl>
+      <a class="btn btn-primary profile-action" href="{{ url_for('submit_article') }}">Viết bài mới</a>
+    </aside>
+
+    <div class="profile-posts">
+      <div class="section-heading-row">
+        <div><span class="aside-label">Đóng góp của bạn</span><h2>Bài viết đang viết</h2></div>
+        <span class="profile-count">{{ submissions|length }} bài</span>
+      </div>
+      <div class="submission-list">
+        {% for item in submissions %}
+        <article class="submission-item">
+          <div>
+            <span class="tag {{ item['category'] }}">{{ CATEGORY_LABELS.get(item['category'], item['category']) }}</span>
+            <h3>{{ item['title'] }}</h3>
+            <p>{{ item['excerpt'] }}</p>
+            <small>{{ item['created_at'][:10] }}</small>
+          </div>
+          <span class="submission-status {{ item['status'] }}">{{ {'pending':'Chờ duyệt','published':'Đã đăng','rejected':'Cần chỉnh sửa'}.get(item['status'], item['status']) }}</span>
+        </article>
+        {% else %}
+        <div class="profile-empty">
+          <h3>Chưa có bài viết nào</h3>
+          <p>Chia sẻ một câu chuyện hoặc góc nhìn của bạn với cộng đồng Tether.</p>
+          <a class="see-all" href="{{ url_for('submit_article') }}">Bắt đầu viết →</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
