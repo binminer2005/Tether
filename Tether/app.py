@@ -475,7 +475,9 @@ def logos(filename):
 
 @app.route("/pics/<path:filename>")
 def pics(filename):
-    return send_from_directory(PICS_DIR, filename)
+    if (PICS_DIR / filename).is_file():
+        return send_from_directory(PICS_DIR, filename)
+    return send_from_directory(BASE_DIR / "Pics", filename)
 
 
 @app.route("/Radio/<path:filename>")
