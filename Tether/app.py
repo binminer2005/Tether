@@ -396,6 +396,9 @@ def disable_dev_cache(response):
 
 @app.before_request
 def load_logged_in_user():
+    if request.endpoint in {"static", "fonts", "logos", "pics", "radio_audio", "healthz"}:
+        g.user = None
+        return
     init_db()
     user_id = session.get("user_id")
     g.user = get_db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone() if user_id else None
